@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Bezkrovnyi LED Controller</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background: #1a1a1a; color: #fff; }
+        .container { max-width: 600px; margin: 0 auto; }
+        .control-group { margin: 20px 0; padding: 15px; background: #2a2a2a; border-radius: 10px; }
+        .slider { width: 100%; margin: 10px 0; }
+        .color-picker { width: 100%; height: 50px; border: none; border-radius: 5px; }
+        .button { padding: 10px 20px; margin: 5px; background: #4CAF50; color: white; border: none; border-radius: 5px; cursor: pointer; }
+        .button:hover { background: #45a049; }
+        .status { padding: 10px; background: #333; border-radius: 5px; margin: 10px 0; }
+        .preset { display: inline-block; margin: 5px; padding: 10px; background: #555; border-radius: 5px; cursor: pointer; }
+        .preset:hover { background: #666; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Bezkrovnyi LED Controller</h1>
+        
+        <div class="status" id="status">
+            <strong>Status:</strong> <span id="connectionStatus">Connecting...</span><br>
+            <strong>BLE Beacon:</strong> <span id="beaconStatus">Searching...</span>
+        </div>
+        
+        <div class="control-group">
+            <h3>Color</h3>
+            <input type="color" id="colorPicker" class="color-picker" value="#ffffff">
+            <div>
+                <label>Red: <span id="redValue">255</span></label>
+                <input type="range" id="redSlider" class="slider" min="0" max="255" value="255">
+            </div>
+            <div>
+                <label>Green: <span id="greenValue">255</span></label>
+                <input type="range" id="greenSlider" class="slider" min="0" max="255" value="255">
+            </div>
+            <div>
+                <label>Blue: <span id="blueValue">255</span></label>
+                <input type="range" id="blueSlider" class="slider" min="0" max="255" value="255">
+            </div>
+            <div>
+                <label>White: <span id="whiteValue">0</span></label>
+                <input type="range" id="whiteSlider" class="slider" min="0" max="255" value="0">
+            </div>
+        </div>
+        
+        <div class="control-group">
+            <h3>Brightness</h3>
+            <div>
+                <label>Brightness: <span id="brightnessValue">255</span>%</label>
+                <input type="range" id="brightnessSlider" class="slider" min="0" max="255" value="255">
+            </div>
+            <div>
+                <label>Away Brightness: <span id="awayBrightnessValue">70</span>%</label>
+                <input type="range" id="awayBrightnessSlider" class="slider" min="0" max="255" value="70">
+            </div>
+        </div>
+        
+        <div class="control-group">
+            <h3>Color Temperature</h3>
+            <div>
+                <label>Temperature: <span id="tempValue">6500</span>K</label>
+                <input type="range" id="tempSlider" class="slider" min="2000" max="6500" value="6500">
+            </div>
+        </div>
+        
+        <div class="control-group">
+            <h3>Transition Settings</h3>
+            <div>
+                <label>Fade Out Time: <span id="fadeOutTimeValue">3000</span>ms</label>
+                <input type="range" id="fadeOutTimeSlider" class="slider" min="500" max="10000" value="3000">
+            </div>
+            <div>
+                <label>Fade In Time: <span id="fadeInTimeValue">3000</span>ms</label>
+                <input type="range" id="fadeInTimeSlider" class="slider" min="500" max="10000" value="3000">
+            </div>
+        </div>
+        
+        
+        <div class="control-group">
+            <h3>Presets</h3>
+            <div class="preset" onclick="setPreset('warm')">Warm</div>
+            <div class="preset" onclick="setPreset('cool')">Cool</div>
+            <div class="preset" onclick="setPreset('red')">Red</div>
+            <div class="preset" onclick="setPreset('green')">Green</div>
+            <div class="preset" onclick="setPreset('blue')">Blue</div>
+            <div class="preset" onclick="setPreset('white')">White</div>
+        </div>
+        
+        <div class="control-group">
+            <button class="button" onclick="toggleLights()">Toggle</button>
+            <button class="button" onclick="testMeteor()">Test Meteor</button>
+            <button class="button" onclick="saveSettings()">Save</button>
+            <button class="button" onclick="loadSettings()">Load</button>
+        </div>
+    </div>
+    
+    <script>
+        let settings = {
+            red: 255, green: 255, blue: 255, white: 0,
+            brightness: 255, awayBrightness: 70, colorTemp: 6500,
+            fadeOutTime: 3000, fadeInTime: 3000
+        };
+        
+        function updateColor() {
+            const r = parseInt(document.getElementById('redSlider').value);
+            const g = parseInt(document.getElementById('greenSlider').value);
+            const b = parseInt(document.getElementById('blueSlider').value);
+            const w = parseInt(document.getElementById('whiteSlider').value);
+            
+            settings.red = r; settings.green = g; settings.blue = b; settings.white = w;
+            
+            document.getElementById('redValue').textContent = r;
+            document.getElementById('greenValue').textContent = g;
+            document.getElementById('blueValue').textContent = b;
+            document.getElementById('whiteValue').textContent = w;
+            
+            document.getElementById('colorPicker').value = rgbToHex(r, g, b);
+            sendUpdate();
+        }
+        
+        function updateBrightness() {
+            settings.brightness = parseInt(document.getElementById('brightnessSlider').value);
+            settings.awayBrightness = parseInt(document.getElementById('awayBrightnessSlider').value);
+            
+            document.getElementById('brightnessValue').textContent = Math.round(settings.brightness * 100 / 255);
+            document.getElementById('awayBrightnessValue').textContent = Math.round(settings.awayBrightness * 100 / 255);
+            sendUpdate();
+        }
+        
+        function updateTemperature() {
+            settings.colorTemp = parseInt(document.getElementById('tempSlider').value);
+            document.getElementById('tempValue').textContent = settings.colorTemp;
+            sendUpdate();
+        }
+        
+        function updateFadeOutTime() {
+            settings.fadeOutTime = parseInt(document.getElementById('fadeOutTimeSlider').value);
+            document.getElementById('fadeOutTimeValue').textContent = settings.fadeOutTime;
+            sendUpdate();
+        }
+        
+        function updateFadeInTime() {
+            settings.fadeInTime = parseInt(document.getElementById('fadeInTimeSlider').value);
+            document.getElementById('fadeInTimeValue').textContent = settings.fadeInTime;
+            sendUpdate();
+        }
+        
+        
+        function rgbToHex(r, g, b) {
+            return "#" + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
+        }
+        
+        function setPreset(preset) {
+            switch(preset) {
+                case 'warm': settings = {red: 255, green: 147, blue: 41, white: 0, brightness: 255, awayBrightness: 70, colorTemp: 2700}; break;
+                case 'cool': settings = {red: 173, green: 216, blue: 230, white: 0, brightness: 255, awayBrightness: 70, colorTemp: 6500}; break;
+                case 'red': settings = {red: 255, green: 0, blue: 0, white: 0, brightness: 255, awayBrightness: 70, colorTemp: 6500}; break;
+                case 'green': settings = {red: 0, green: 255, blue: 0, white: 0, brightness: 255, awayBrightness: 70, colorTemp: 6500}; break;
+                case 'blue': settings = {red: 0, green: 0, blue: 255, white: 0, brightness: 255, awayBrightness: 70, colorTemp: 6500}; break;
+                case 'white': settings = {red: 255, green: 255, blue: 255, white: 255, brightness: 255, awayBrightness: 70, colorTemp: 6500}; break;
+            }
+            updateUI();
+            sendUpdate();
+        }
+        
+        function updateUI() {
+            document.getElementById('redSlider').value = settings.red;
+            document.getElementById('greenSlider').value = settings.green;
+            document.getElementById('blueSlider').value = settings.blue;
+            document.getElementById('whiteSlider').value = settings.white;
+            document.getElementById('brightnessSlider').value = settings.brightness;
+            document.getElementById('awayBrightnessSlider').value = settings.awayBrightness;
+            document.getElementById('tempSlider').value = settings.colorTemp;
+            document.getElementById('fadeOutTimeSlider').value = settings.fadeOutTime;
+            document.getElementById('fadeInTimeSlider').value = settings.fadeInTime;
+            
+            document.getElementById('redValue').textContent = settings.red;
+            document.getElementById('greenValue').textContent = settings.green;
+            document.getElementById('blueValue').textContent = settings.blue;
+            document.getElementById('whiteValue').textContent = settings.white;
+            document.getElementById('brightnessValue').textContent = Math.round(settings.brightness * 100 / 255);
+            document.getElementById('awayBrightnessValue').textContent = Math.round(settings.awayBrightness * 100 / 255);
+            document.getElementById('tempValue').textContent = settings.colorTemp;
+            document.getElementById('fadeOutTimeValue').textContent = settings.fadeOutTime;
+            document.getElementById('fadeInTimeValue').textContent = settings.fadeInTime;
+            
+            document.getElementById('colorPicker').value = rgbToHex(settings.red, settings.green, settings.blue);
+        }
+        
+        function sendUpdate() {
+            fetch('/api/update', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(settings)
+            });
+        }
+        
+        function toggleLights() {
+            fetch('/api/toggle', {method: 'POST'});
+        }
+        
+        function testMeteor() {
+            fetch('/api/test-meteor', {method: 'POST'})
+                .then(response => response.json())
+                .then(data => {
+                    console.log('Test meteor response:', data);
+                });
+        }
+        
+        function saveSettings() {
+            fetch('/api/save', {method: 'POST'});
+        }
+        
+        function loadSettings() {
+            fetch('/api/load')
+                .then(response => response.json())
+                .then(data => {
+                    settings = data;
+                    updateUI();
+                });
+        }
+        
+        function updateStatus() {
+            fetch('/api/status')
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('connectionStatus').textContent = data.connected ? 'Connected' : 'Disconnected';
+                    document.getElementById('beaconStatus').textContent = data.beaconFound ? 'Found' : 'Not Found';
+                });
+        }
+        
+        // Ініціалізація
+        document.getElementById('redSlider').addEventListener('input', updateColor);
+        document.getElementById('greenSlider').addEventListener('input', updateColor);
+        document.getElementById('blueSlider').addEventListener('input', updateColor);
+        document.getElementById('whiteSlider').addEventListener('input', updateColor);
+        document.getElementById('brightnessSlider').addEventListener('input', updateBrightness);
+        document.getElementById('awayBrightnessSlider').addEventListener('input', updateBrightness);
+        document.getElementById('tempSlider').addEventListener('input', updateTemperature);
+        document.getElementById('fadeOutTimeSlider').addEventListener('input', updateFadeOutTime);
+        document.getElementById('fadeInTimeSlider').addEventListener('input', updateFadeInTime);
+        
+        document.getElementById('colorPicker').addEventListener('change', function(e) {
+            const hex = e.target.value;
+            const r = parseInt(hex.substr(1,2), 16);
+            const g = parseInt(hex.substr(3,2), 16);
+            const b = parseInt(hex.substr(5,2), 16);
+            settings.red = r; settings.green = g; settings.blue = b;
+            updateUI();
+            sendUpdate();
+        });
+        
+        setInterval(updateStatus, 2000);
+        loadSettings();
+    </script>
+</body>
+</html>
